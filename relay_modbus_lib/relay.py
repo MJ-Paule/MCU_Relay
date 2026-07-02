@@ -1,5 +1,4 @@
 import logging
-import serial
 
 _LOG = logging.getLogger(__name__)
 
@@ -79,12 +78,12 @@ class RelayWave:
         self.ser.reset_input_buffer()
         self.ser.write(dataFrame)
 
-        _LOG.debug("Datenframe gesendet TX:", dataFrame.hex())
+        _LOG.debug("Datenframe gesendet TX: {dataFrame.hex()}")
 
         self.ser.flush()
         resp = self.ser.read(12)
 
-        _LOG.debug("Empfangener Datenframe RX:", resp.hex())
+        _LOG.debug("Empfangener Datenframe RX: {resp.hex()}")
 
         '''if expect_echo:
             self._validateResponse(resp, dataFrame[1], dataFrame[2] << 8 | dataFrame[3]) #Validate response with function code and register from sent frame
@@ -108,7 +107,7 @@ class RelayWave:
             if len(resp) != (3 + resp[2] + 2):      #Verify length response based of data inside of response
                 raise IOError(f"IOE-01-001: Received response with invalid length: {resp.hex()}")
             
-            if _crc16_modbus_bytes(resp[:-2]) != resp[-2]:
+            if _crc16_modbus_bytes(resp[:-2]) != resp[-2:]:
                 raise IOError(f"IOE-01-003: Received CRC response mismatch: calculated {_crc16_modbus_bytes(resp[:-2])}, received {resp[-2]}")               
             
 
@@ -204,17 +203,17 @@ class RelayWave:
     
     # Method wrapper for better readability of control functions
     def RelayOn(self, relay: int, verify_echo: bool = True) -> bytes:
-        _LOG.debug("Relay ON:", relay)
+        _LOG.debug("Relay ON: {relay}")
         return self.ControlRelay( relay, 'on', verify_echo)
 
     # Method wrapper for better readability of control functions
     def RelayOff(self,relay: int, verify_echo: bool = True) -> bytes:
-        _LOG.debug("Relay OFF:", relay)
+        _LOG.debug("Relay OFF: {relay}")
         return self.ControlRelay(relay, 'off', verify_echo)
 
     # Method wrapper for better readability of control functions
     def RelayToggle(self,relay: int, verify_echo: bool = True) -> bytes:
-        _LOG.debug("Relay Toggle:", relay)
+        _LOG.debug("Relay Toggle: {relay}")
         return self.ControlRelay(relay, 'toggle', verify_echo) 
 
     # Method wrapper for better readability of control functions
@@ -258,7 +257,7 @@ class RelayWave:
 
         dataFrame = self._buildDataFrame(0x06, 0x2000, value, 1)  # 0x2000 command to set Baudrate; 1 for Sending Broadcast
         resp = self._sendDataFrame(dataFrame)
-        _LOG.debug("Baudrate set to:", baudRate)
+        _LOG.debug("Baudrate set to: {baudRate}")
 
         return True
 
@@ -278,7 +277,7 @@ class RelayWave:
 
         if result == newDeviceAddr:
             self.deviceAddr = newDeviceAddr
-            _LOG.debug("Device Addr. set to:", newDeviceAddr)
+            _LOG.debug("Device Addr. set to: {newDeviceAddr}")
 
         else:
             raise RuntimeError("Device address change failed")
@@ -312,6 +311,6 @@ class RelayWave:
         val = (resp[3] << 8) | resp[4]
 
         SWversion = f"V{val // 100}.{val % 100:02d}"
-        _LOG.debug("SW-Version:", SWversion)
+        _LOG.debug("SW-Version: {SWversion}")
 
         return SWversion
