@@ -2,6 +2,10 @@ import logging
 
 _LOG = logging.getLogger(__name__)
 
+def bytes_to_hex(data: bytes) -> str:
+    return " ".join(f"{b:02X}" for b in data)
+
+
 def _u16_be(x: int) -> bytes:
     return bytes([(x >> 8) & 0xFF, x & 0xFF])
 
@@ -53,7 +57,7 @@ class RelayWave:
             raise ValueError("Device address must be between 1 and 247.")
         else:
             self.deviceAddr = deviceAddr
-            _LOG.debug(f"Relaymatrix {self.deviceAddr}intialisiert")
+            _LOG.debug(f"Relaymatrix {self.deviceAddr} intialisiert")
 
     # ----------------------------------
     # Low Level Helper
@@ -63,6 +67,8 @@ class RelayWave:
     def _buildDataFrame(self, commandCode: int, firstDataWord: int,  secondDataWord: int, specialAddr: int = 0) -> bytes:
         # Frame: [addr][func][reg_hi][reg_lo][val_hi][val_lo] + CRC(lo,hi)
         # CRC16 over first 6 Bytes, CRC im Frame little-endian (low byte first).
+
+        _LOG.debug("Enter Building Data Frame")
         
         if specialAddr == 1:    #Sending Broadcast message
             devAddr = 0x00
@@ -70,6 +76,8 @@ class RelayWave:
             devAddr = self.deviceAddr
 
         head = bytes([devAddr & 0xFF, commandCode & 0xFF]) +_u16_be(firstDataWord) +_u16_be(secondDataWord)
+
+        _LOG.debug(f"Head Info: {head}")
         
         return head + _crc16_modbus_bytes(head)
     
@@ -78,12 +86,12 @@ class RelayWave:
         self.ser.reset_input_buffer()
         self.ser.write(dataFrame)
 
-        _LOG.debug("Datenframe gesendet TX: {dataFrame.hex()}")
+        _LOG.debug("Datenframe gesendet TX: %s", bytes_to_hex(dataFrame))
 
         self.ser.flush()
         resp = self.ser.read(12)
 
-        _LOG.debug("Empfangener Datenframe RX: {resp.hex()}")
+        _LOG.debug("Empfangener Datenframe RX: %s", bytes_to_hex(resp))
 
         '''if expect_echo:
             self._validateResponse(resp, dataFrame[1], dataFrame[2] << 8 | dataFrame[3]) #Validate response with function code and register from sent frame
@@ -291,6 +299,7 @@ class RelayWave:
         '''
             Command to read Device Address
         '''
+        _LOG.debug("Enter Requesting Device Address")
 
         dataFrame = self._buildDataFrame(0x03, 0x4000, 0x0001) # 0x4000 command to read Device Address, 0x0001 fixed address
         resp = self._sendDataFrame(dataFrame)
