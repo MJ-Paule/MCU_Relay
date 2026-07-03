@@ -1,10 +1,8 @@
 import logging
 
+from .utils import hex_dump
+
 _LOG = logging.getLogger(__name__)
-
-def bytes_to_hex(data: bytes) -> str:
-    return " ".join(f"{b:02X}" for b in data)
-
 
 def _u16_be(x: int) -> bytes:
     return bytes([(x >> 8) & 0xFF, x & 0xFF])
@@ -77,7 +75,7 @@ class RelayWave:
 
         head = bytes([devAddr & 0xFF, commandCode & 0xFF]) +_u16_be(firstDataWord) +_u16_be(secondDataWord)
 
-        _LOG.debug(f"Head Info: {head}")
+        _LOG.debug("Head Info: %s", hex_dump(head))
         
         return head + _crc16_modbus_bytes(head)
     
@@ -86,12 +84,12 @@ class RelayWave:
         self.ser.reset_input_buffer()
         self.ser.write(dataFrame)
 
-        _LOG.debug("Datenframe gesendet TX: %s", bytes_to_hex(dataFrame))
+        _LOG.debug("Datenframe gesendet TX: %s", hex_dump(dataFrame))
 
         self.ser.flush()
         resp = self.ser.read(12)
 
-        _LOG.debug("Empfangener Datenframe RX: %s", bytes_to_hex(resp))
+        _LOG.debug("Empfangener Datenframe RX: %s", hex_dump(resp))
 
         '''if expect_echo:
             self._validateResponse(resp, dataFrame[1], dataFrame[2] << 8 | dataFrame[3]) #Validate response with function code and register from sent frame
@@ -211,17 +209,17 @@ class RelayWave:
     
     # Method wrapper for better readability of control functions
     def RelayOn(self, relay: int, verify_echo: bool = True) -> bytes:
-        _LOG.debug("Relay ON: {relay}")
+        _LOG.debug(f"Relay ON: {relay}")
         return self.ControlRelay( relay, 'on', verify_echo)
 
     # Method wrapper for better readability of control functions
     def RelayOff(self,relay: int, verify_echo: bool = True) -> bytes:
-        _LOG.debug("Relay OFF: {relay}")
+        _LOG.debug(f"Relay OFF: {relay}")
         return self.ControlRelay(relay, 'off', verify_echo)
 
     # Method wrapper for better readability of control functions
     def RelayToggle(self,relay: int, verify_echo: bool = True) -> bytes:
-        _LOG.debug("Relay Toggle: {relay}")
+        _LOG.debug(f"Relay Toggle: {relay}")
         return self.ControlRelay(relay, 'toggle', verify_echo) 
 
     # Method wrapper for better readability of control functions
@@ -320,6 +318,6 @@ class RelayWave:
         val = (resp[3] << 8) | resp[4]
 
         SWversion = f"V{val // 100}.{val % 100:02d}"
-        _LOG.debug("SW-Version: {SWversion}")
+        _LOG.debug(f"SW-Version: {SWversion}")
 
         return SWversion
