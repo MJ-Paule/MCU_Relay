@@ -1,28 +1,9 @@
 import logging
+import serial
 
-from .utils import hex_dump
+from relay_modbus_lib.utils import _hex_dump, _u16_be, _crc16_modbus_bytes
 
 _LOG = logging.getLogger(__name__)
-
-def _u16_be(x: int) -> bytes:
-    return bytes([(x >> 8) & 0xFF, x & 0xFF])
-
-def _crc16_modbus(data: bytes) -> int:                      #Calculate CRC16 for ModBus RTU, returns integer value
-    """
-    CRC16/MODBUS: init=0xFFFF, poly=0xA001, output little-endian in frame.
-    """
-    crc = 0xFFFF
-    for b in data:
-        crc ^= b
-        for _ in range(8):
-            if crc & 0x0001:
-                crc = (crc >> 1) ^ 0xA001
-            else:
-                crc >>= 1
-    return crc & 0xFFFF
-
-def _crc16_modbus_bytes(data: bytes) -> bytes:              #Calculate CRC16 for ModBus RTU, returns byte value
-    return _crc16_modbus(data).to_bytes(2,"little")
 
 BAUD_MAP = {
     4800: 0x00,
@@ -34,6 +15,7 @@ BAUD_MAP = {
     128000: 0x06,
     256000: 0x07,
 }
+
 
 class RelayWave:
     """
@@ -75,27 +57,38 @@ class RelayWave:
 
         head = bytes([devAddr & 0xFF, commandCode & 0xFF]) +_u16_be(firstDataWord) +_u16_be(secondDataWord)
 
-        _LOG.debug("Head Info: %s", hex_dump(head))
+        _LOG.debug("Head Info: %s", _hex_dump(head))
         
         return head + _crc16_modbus_bytes(head)
     
     # Send frame and read response, optionally verify echo of sent frame
     def _sendDataFrame(self, dataFrame: bytes, expect_echo: bool = True) -> bytes:
-        self.ser.reset_input_buffer()
-        self.ser.write(dataFrame)
+        
+        try:
 
-        _LOG.debug("Datenframe gesendet TX: %s", hex_dump(dataFrame))
+            self.ser.reset_input_buffer()
+            self.ser.write(dataFrame)
 
-        self.ser.flush()
-        resp = self.ser.read(12)
+            _LOG.debug("Serial Data Frame sent TX: %s", _hex_dump(dataFrame))
 
-        _LOG.debug("Empfangener Datenframe RX: %s", hex_dump(resp))
+            self.ser.flush()
+            resp = self.ser.read(12)
 
-        '''if expect_echo:
-            self._validateResponse(resp, dataFrame[1], dataFrame[2] << 8 | dataFrame[3]) #Validate response with function code and register from sent frame
-        '''
-        return resp
+            if not resp:
+                raise RuntimeError("No response received from relay board")
+
+            _LOG.debug("Received Data Frame RX: %s", _hex_dump(resp))
+
+            '''if expect_echo:
+                self._validateResponse(resp, dataFrame[1], dataFrame[2] << 8 | dataFrame[3]) #Validate response with function code and register from sent frame
+            '''
+            return resp
+        
+        except Exception:
+            _LOG.exception("Serial communication failed")
+            raise 
     
+
     # Validation of received response, checks length, device address, function code, register and CRC
     def _validateResponse(self, resp: bytes, dataFrame: bytes) -> None:
         functionCode = dataFrame[1]
